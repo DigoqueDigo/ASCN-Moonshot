@@ -1,0 +1,43 @@
+---
+- name: Delete ConfigMap of Prometheus
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-config.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy the Prometheus Deployment
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-deployment.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy the Prometheus Service
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy DeamonSet of Prometheus Node Exporter
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-node-exporter-daemonset.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy the Prometheus Node Exporter Service
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-node-exporter-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Delete Prometheus namespace
+  kubernetes.core.k8s:
+    state: absent
+    kind: namespace
+    name: monitoring
+    wait: true
+    wait_timeout: 120

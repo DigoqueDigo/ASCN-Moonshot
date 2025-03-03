@@ -1,0 +1,20 @@
+---
+- name: Check if load test VM exist
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute instances list | grep vm{{ index }}
+  register: vm_check
+  failed_when: vm_check.rc not in [0, 1] 
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index
+
+- name: Delete load test VMs
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute instances delete vm{{ index }} \
+      --zone {{load_vm_zone}} --quiet
+  when: vm_check.results[index].rc == 0
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index

@@ -1,0 +1,14 @@
+---
+# Undeploy Postgres and Moonshot with Kubernetes
+- name: Undeploy moonshot app
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: grafana-undeploy
+      tags: ["grafana"]
+    - role: prometheus-undeploy
+      tags: ["prometheus"]
+    - role: moonshot-undeploy
+      tags: ["moonshot"]
+    - role: postgres-undeploy
+      tags: ["postgres"]

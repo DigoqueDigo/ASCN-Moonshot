@@ -1,0 +1,40 @@
+---
+# Monitoring the Moonshot application
+- name: Create load VMs
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: load-test/load_vms_create
+  tags: ["create"]
+
+- name: Provisioning load VMs
+  hosts: load_vms
+  gather_facts: true
+  roles:
+    - role: load-test/load_vms_provisioning
+  tags: ["provisioning"]
+
+- name: Run tests on load VMs
+  hosts: load_vms
+  gather_facts: true
+  roles:
+    - { 
+      role: load-test/load_vms_test,
+      jmeter_load_test_threads: 200,
+      jmeter_load_test_iters: 200,
+      jmeter_load_test_file: load_app.jmx,
+    #  k6_load_test_vus: 100,
+    #  k6_load_test_iters: 10000,
+    #  k6_load_test_file: load_app.js
+      k6_load_test_vus: 20,
+      k6_load_test_iters: 200,
+      k6_load_test_file: load_db.js
+      }
+  tags: ["test"]
+
+- name: Delete load VMs
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: load-test/load_vms_destroy
+  tags: ["destroy"]

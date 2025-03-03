@@ -1,0 +1,65 @@
+---
+- name: Check if load test VM exist
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute instances list | grep vm{{ index }}
+  register: vm_check
+  failed_when: vm_check.rc not in [0, 1] 
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index
+
+- name: Create load test VMs
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute instances create vm{{ index }} \
+      --machine-type {{ load_vm_machine_type }} \
+      --image-project {{ load_vm_image_project }} \
+      --image {{ load_vm_image }} \
+      --zone {{ load_vm_zone }} \
+      --labels vm={{ load_vm_label }}
+  when: vm_check.results[index].rc == 1
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index
+
+- name: Collect IP addresses of VMs
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute instances describe vm{{ index }} \
+      --zone {{ load_vm_zone }} \
+      --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
+  register: vm_ips
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index
+
+- name: Generate SSH key if not already present
+  ansible.builtin.shell:
+    cmd: |
+      if [ ! -f ~/.ssh/id_rsa ]; then
+        ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N "";
+      fi
+  changed_when: false
+
+- name: Add SSH key to the VM metadata
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute instances add-metadata vm{{ index }} \
+      --zone {{ load_vm_zone }} \
+      --metadata ssh-keys="{{ ansible_user }}:$(cat ~/.ssh/id_rsa.pub)"
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index
+
+- name: Save the value of IP addresses in hosts file
+  replace:
+    path: inventory/hosts
+    regexp: "vm{{ index }}.+"
+    replace: "vm{{ index }} ansible_host={{ vm_ips.results[index].stdout }} ansible_user={{ ansible_user }} ansible_ssh_private_key_file=~/.ssh/id_rsa"
+  loop: "{{ range(load_vms|int) | list }}"
+  loop_control:
+    loop_var: index
+
+- name: Refresh inventory to include load VMs
+  meta: refresh_inventory

@@ -1,0 +1,6 @@
+[load_vms]
+vm0 ansible_host=34.173.38.21 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+vm1 ansible_host=34.44.14.251 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+vm2 ansible_host=34.27.252.200 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+vm3 ansible_host=34.28.62.44 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+vm4 ansible_host=34.42.187.193 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa

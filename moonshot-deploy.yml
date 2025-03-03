@@ -1,0 +1,14 @@
+---
+# Deploy Postgres and Moonshot with Kubernetes
+- name: Deploy moonshot app
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: postgres-deploy
+      tags: ["postgres"]
+    - role: moonshot-deploy
+      tags: ["moonshot"]
+    - role: prometheus-deploy
+      tags: ["prometheus"]
+    - role: grafana-deploy
+      tags: ["grafana"]

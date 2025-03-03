@@ -1,0 +1,94 @@
+---
+- name: Create a ConfigMap for Moonshot
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/moonshot/moonshot-config.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Secret for Moonshot
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/moonshot/moonshot-secret.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Deployment for Moonshot
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/moonshot/moonshot-deployment.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Service for exposing Moonshot
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/moonshot/moonshot-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Wait till Moonshot pod is created
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: default
+    label_selectors:
+      - app=moonshot
+    wait: true
+    wait_sleep: 5
+    wait_timeout: 180
+  register: moonshot_pod_info
+
+- name: Search for a pod with label app=moonshot
+  kubernetes.core.k8s_info:
+    kind: Pod
+    label_selectors:
+      - app=moonshot
+  register: moonshot_pod
+
+- name: Populate the Postgres database
+  kubernetes.core.k8s_exec:
+    namespace: default
+    pod: "{{ moonshot_pod_info.resources[0].metadata.name }}"
+    command: python seed.py
+  register: result_seed
+  retries: 5
+  delay: 5
+  until: result_seed.rc == 0
+  when: seed_database == "true"
+
+- name: Wait for the LoadBalancer Service to become available
+  kubernetes.core.k8s_info:
+    kind: Service
+    namespace: default
+    label_selectors:
+      - "app=moonshot"
+  register: moonshot_info
+  retries: 10
+  delay: 5
+  until: moonshot_info.resources[0].status.loadBalancer | length > 0
+
+- name: Debug moonshot_info
+  debug:
+    var: moonshot_info
+
+- name: Assigning the IP to the app_ip variable
+  set_fact:
+    app_ip: "{{ moonshot_info.resources[0].status.loadBalancer.ingress[0].ip }}"
+
+- name: Display access IP address
+  debug:
+    var: app_ip
+
+- name: Changing the value of the app_ip variable in the gcp.yml file
+  replace:
+    path: inventory/gcp.yml
+    regexp: "app_ip:.+"
+    replace: "app_ip: '{{ app_ip }}'"
+
+- name: Create a Horizontal Pod Autoscaler for Moonshot Deployment
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/moonshot/moonshot-hpa.yml') }}"
+    wait: true
+    wait_timeout: 120
+  when: moonshot_hpa == "true"

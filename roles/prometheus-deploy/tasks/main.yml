@@ -1,0 +1,79 @@
+---
+- name: Create a namespace for Prometheus
+  kubernetes.core.k8s:
+    state: present
+    kind: namespace
+    name: monitoring
+    wait: true
+    wait_timeout: 120
+
+- name: Create a DeamonSet for Prometheus Node Exporter
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-node-exporter-daemonset.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Service for exposing Prometheus Node Exporter
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-node-exporter-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Wait for the ClusterIP Service to become available
+  kubernetes.core.k8s_info:
+    kind: Service
+    namespace: monitoring
+    label_selectors:
+      - "app=node-exporter"
+  register: node_exporter_info
+  retries: 10
+  delay: 5
+  until: node_exporter_info.resources[0].spec.clusterIPs | length > 0
+
+- name: Assigning the IP to the node_exporter_ip variable
+  set_fact:
+    node_exporter_ip: "{{ node_exporter_info.resources[0].spec.clusterIPs[0] }}"
+
+- name: Display access IP address of Prometheus Node Exporter
+  debug:
+    var: node_exporter_ip
+
+- name: Changing the value of the node_exporter_ip variable in the gcp.yml file
+  replace:
+    path: inventory/gcp.yml
+    regexp: "node_exporter_ip:.+"
+    replace: "node_exporter_ip: '{{ node_exporter_ip }}'"
+
+- name: Create a ConfigMap for Prometheus
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-config.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Deployment for Prometheus
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-deployment.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Service for exposing Prometheus
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/prometheus/prometheus-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Wait till Prometheus pod is created
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: monitoring
+    label_selectors:
+      - app=prometheus
+    wait: true
+    wait_sleep: 5
+    wait_timeout: 180
+  register: prometheus_pod_info

@@ -1,0 +1,128 @@
+---
+- name: Update package manager cache
+  ansible.builtin.apt:
+    update_cache: yes
+  become: true
+
+- name: Check if Java 11 is installed
+  ansible.builtin.command:
+    cmd: java -version
+  register: java_check
+  failed_when: false
+
+- name: Install Java 11
+  ansible.builtin.apt:
+    name: openjdk-11-jdk
+    state: present
+  become: true
+  when: java_check.rc != 0
+
+- name: Check if k6 is installed
+  ansible.builtin.command:
+    cmd: k6 version
+  register: k6_check
+  failed_when: false
+  
+- name: Install dirmngr
+  ansible.builtin.apt:
+    name: dirmngr
+    state: present
+  become: true
+  when: k6_check.rc != 0
+
+- name: Ensure GPG directory exists
+  ansible.builtin.file:
+    path: "/root/.gnupg"
+    state: directory
+    mode: "0700"
+  become: true
+  when: k6_check.rc != 0
+
+- name: Add the k6 GPG key
+  ansible.builtin.shell:
+    cmd: |
+      gpg --no-default-keyring \
+      --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+      --keyserver hkp://keyserver.ubuntu.com:80 \
+      --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+  become: true
+  when: k6_check.rc != 0
+
+- name: Add the k6 repository
+  ansible.builtin.shell:
+    cmd: |
+      echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
+      https://dl.k6.io/deb stable main" | \
+      tee /etc/apt/sources.list.d/k6.list
+  become: true
+  when: k6_check.rc != 0
+
+- name: Update package manager cache
+  ansible.builtin.apt:
+    update_cache: yes
+  become: true
+  when: k6_check.rc != 0
+
+- name: Install k6
+  ansible.builtin.apt:
+    name: k6
+    state: present
+  become: true
+  when: k6_check.rc != 0
+
+- name: Check if JMeter is installed
+  ansible.builtin.command:
+    cmd: jmeter --version
+  register: jmeter_check
+  failed_when: false
+
+- name: Download JMeter
+  ansible.builtin.get_url:
+    url: "https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.6.3.tgz"
+    dest: "/tmp/apache-jmeter-5.6.3.tgz"
+  become: true
+  when: jmeter_check.rc != 0
+
+- name: Extract JMeter
+  ansible.builtin.unarchive:
+    src: "/tmp/apache-jmeter-5.6.3.tgz"
+    dest: "/opt/"
+    remote_src: yes
+  become: true
+  when: jmeter_check.rc != 0
+
+- name: Create symlink for JMeter
+  ansible.builtin.file:
+    src: "/opt/apache-jmeter-5.6.3/bin/jmeter"
+    dest: "/usr/bin/jmeter"
+    state: link
+  become: true
+  when: jmeter_check.rc != 0
+
+- name: Delete Apache JMeter tgz archive
+  ansible.builtin.file:
+    path: "/tmp/apache-jmeter-5.6.3.tgz"
+    state: absent
+  become: true
+  when: jmeter_check.rc != 0
+
+- name: Clear remote test directories
+  ansible.builtin.file:
+    path: "{{ remote_load_test }}"
+    state: absent
+  become: true
+
+- name: Setup remote test directories
+  ansible.builtin.file:
+    path: "{{ remote_load_test }}"
+    state: directory
+    mode: '0777'
+  become: true
+
+- name: Copy all files inside tests directory to VMs
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute scp --recurse {{ local_load_test }}* \
+      {{ ansible_hostname }}:{{ remote_load_test }} \
+      --zone {{ load_vm_zone }}
+  delegate_to: localhost

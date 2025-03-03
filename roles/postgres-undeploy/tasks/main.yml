@@ -1,0 +1,44 @@
+---
+- name: Delete ConfigMap of Postgres
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/postgres/postgres-config.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Delete Secret of Postgres
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/postgres/postgres-secret.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy the Postgres Deployment
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/postgres/postgres-deployment.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy the Postgres Service
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/postgres/postgres-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Undeploy the Postgres PVC
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/postgres/postgres-pvc.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+  when: delete_data == "true"
+
+- name: Undeploy the Postgres Storage Class
+  kubernetes.core.k8s:
+    state: absent
+    definition: "{{ lookup('template', 'templates/postgres/postgres-storage-class.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+  when: delete_data == "true"

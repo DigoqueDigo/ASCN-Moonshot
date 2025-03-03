@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moonshot-deployment
+  labels:
+    app: moonshot
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: moonshot
+  template:
+    metadata:
+      labels:
+        app: moonshot
+    spec:
+      nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                - us-central1-a
+      topologySpreadConstraints:
+        - maxSkew: 1
+          nodeAffinityPolicy: Honor
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: moonshot
+      containers:
+      - name: moonshot
+        image: "{{ moonshot_image }}"
+        envFrom:
+        - configMapRef:
+            name: moonshot-config
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: moonshot-secret
+              key: DB_PASSWORD
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "200Mi"
+          limits:
+            cpu: "500m"
+            memory: "500Mi"

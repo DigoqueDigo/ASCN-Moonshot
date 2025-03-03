@@ -1,0 +1,89 @@
+---
+- name: Update app_ip value of JMeter file
+  replace:
+    path: "{{ remote_load_test_input }}{{ jmeter_load_test_file }}"
+    regexp: 'app_ip'
+    replace: '{{ app_ip }}'
+  become: true
+
+- name: Update app_port value of JMeter file
+  replace:
+    path: "{{ remote_load_test_input }}{{ jmeter_load_test_file }}"
+    regexp: 'app_port'
+    replace: '{{ app_port }}'
+  become: true
+
+- name: Update app_ip value of k6 file
+  replace:
+    path: "{{ remote_load_test_input }}{{ k6_load_test_file }}"
+    regexp: 'app_ip'
+    replace: '{{ app_ip }}'
+  become: true
+
+- name: Update app_port value of k6 file
+  replace:
+    path: "{{ remote_load_test_input }}{{ k6_load_test_file }}"
+    regexp: 'app_port'
+    replace: '{{ app_port }}'
+  become: true
+
+- name: Run JMeter load test
+  ansible.builtin.shell:
+    cmd: |
+      jmeter -n -t {{ remote_load_test_input }}{{ jmeter_load_test_file }} \
+      -Jthreads={{ jmeter_load_test_threads }} -Jiters={{ jmeter_load_test_iters }} \
+      -l {{ remote_load_test_output }}{{ ansible_hostname }}_{{ jmeter_load_test_threads }}_{{ jmeter_load_test_iters }}_jmeter.jtl \
+      -f -e -o {{ remote_load_test_dashboard }}{{ ansible_hostname }}_{{ jmeter_load_test_threads }}_{{ jmeter_load_test_iters }}_jmeter
+  become: true
+
+- name: Run k6 load test
+  ansible.builtin.shell:
+    cmd: |
+      K6_WEB_DASHBOARD=true \
+      K6_WEB_DASHBOARD_EXPORT={{ remote_load_test_dashboard }}{{ ansible_hostname }}_{{ k6_load_test_vus }}_{{ k6_load_test_iters }}_k6.html \
+      k6 run --vus={{ k6_load_test_vus }} \
+      --iterations={{ k6_load_test_iters }} \
+      --out json={{ remote_load_test_output }}{{ ansible_hostname }}_{{ k6_load_test_vus }}_{{ k6_load_test_iters }}_k6.json \
+      {{ remote_load_test_input }}{{ k6_load_test_file }} > log.txt
+  become: true
+
+- name: Copy JMeter and k6 log sample results to localhost
+  ansible.builtin.fetch:
+    src: "{{ file }}"
+    dest: "{{ local_load_test_output }}"
+    flat: true
+  loop:
+    - "{{ remote_load_test_output }}{{ ansible_hostname }}_{{ jmeter_load_test_threads }}_{{ jmeter_load_test_iters }}_jmeter.jtl"
+    - "{{ remote_load_test_output }}{{ ansible_hostname }}_{{ k6_load_test_vus }}_{{ k6_load_test_iters }}_k6.json"
+  loop_control:
+    loop_var: file
+  become: true
+
+- name: Copy k6 report dashboard to localhost
+  ansible.builtin.fetch:
+    src: "{{ remote_load_test_dashboard }}{{ ansible_hostname }}_{{ k6_load_test_vus }}_{{ k6_load_test_iters }}_k6.html"
+    dest: "{{ local_load_test_dashboard }}"
+    flat: true
+  become: true
+
+- name: Copy JMeter report dashboard to localhost
+  ansible.builtin.shell:
+    cmd: |
+      gcloud compute scp --recurse \
+      {{ ansible_hostname }}:{{ remote_load_test_dashboard }}{{ ansible_hostname }}_{{ jmeter_load_test_threads }}_{{ jmeter_load_test_iters }}_jmeter \
+      {{ local_load_test_dashboard }} \
+      --zone {{load_vm_zone}}
+  delegate_to: localhost
+
+- name: Delete JMeter and k6 output files
+  ansible.builtin.file:
+    path: "{{ file }}"
+    state: absent
+  loop:
+    - "{{ remote_load_test_output }}{{ ansible_hostname }}_{{jmeter_load_test_threads }}_{{ jmeter_load_test_iters }}_jmeter.jtl"
+    - "{{ remote_load_test_output }}{{ ansible_hostname }}_{{ k6_load_test_vus }}_{{ k6_load_test_iters }}_k6.json"
+    - "{{ remote_load_test_dashboard }}{{ ansible_hostname }}_{{ jmeter_load_test_threads }}_{{ jmeter_load_test_iters }}_jmeter"
+    - "{{ remote_load_test_dashboard }}{{ ansible_hostname }}_{{ k6_load_test_vus }}_{{ k6_load_test_iters }}_k6.html"
+  loop_control:
+    loop_var: file
+  become: true

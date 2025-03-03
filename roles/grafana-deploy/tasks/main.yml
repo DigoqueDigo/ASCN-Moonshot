@@ -1,0 +1,39 @@
+- name: Create a namespace for Grafana
+  kubernetes.core.k8s:
+    state: present
+    kind: namespace
+    name: grafana
+    wait: true
+    wait_timeout: 120
+
+- name: Create a PVC for Grafana
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/grafana/grafana-pvc.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Deployment for Grafana
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/grafana/grafana-deployment.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Create a Service for exposing Grafana
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'templates/grafana/grafana-service.yml') | from_yaml }}"
+    wait: true
+    wait_timeout: 120
+
+- name: Wait till Grafana pod is created
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: grafana
+    label_selectors:
+      - app=grafana
+    wait: true
+    wait_sleep: 5
+    wait_timeout: 180
+  register: grafana_pod_info
